@@ -34,7 +34,7 @@ public class MessageController {
         return messages.stream()
                 .filter(msg -> msg.getMessageId().equals(id))
                 .findFirst()
-                .orElseThrow(() -> new MessageNotFoundException("Message not found with id: " + id));
+                .orElseThrow(() -> new MessageNotFoundException("Message not found with id: " + id)); //todo
     }
 
 }
