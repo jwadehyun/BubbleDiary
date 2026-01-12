@@ -1,19 +1,27 @@
 package com.example;
 
+import jakarta.persistence.*;
 import java.time.Instant;
 
+@Entity
+@Table(name = "messages")
 public class Message {
 
-    private String text;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long messageId;
+
+    @Column(nullable=false)
+    private String text;
+
+    @Column(nullable=false)
     private Instant createdAt;
 
     public Message() {
     }
 
-    public Message(String text, Long messageId, Instant createdAt) {
+    public Message(String text, Instant createdAt) {
         this.text = text;
-        this.messageId = messageId;
         this.createdAt = createdAt;
     }
 
@@ -23,14 +31,6 @@ public class Message {
 
     public void setText(String text) {
         this.text = text;
-    }
-
-    public Long getMessageId() {
-        return messageId;
-    }
-
-    public void setMessageId(Long messageId) {
-        this.messageId = messageId;
     }
 
     public Instant getCreatedAt() {

@@ -1,5 +1,6 @@
 package com.example;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -9,32 +10,30 @@ import java.util.concurrent.atomic.AtomicLong;
 @RestController
 @RequestMapping("/api/messages")
 public class MessageController {
-    // In-memory storage for now
-    private final List<Message> messages = new CopyOnWriteArrayList<>(); //thread-safe list
-    private final AtomicLong idGenerator = new AtomicLong(0); //thread-safe increment counter
+    private final MessageRepository messageRepo;
+
+    public MessageController(MessageRepository messageRepo) {
+        this.messageRepo = messageRepo;
+    }
 
     // POST /api/messages
     @PostMapping
     public Message createMessage(@RequestBody CreateMessageRequest request) {
-        Long id = idGenerator.incrementAndGet();
-        Message message = new Message(request.getText(), id, java.time.Instant.now());
-        messages.add(message);
-        return message;
+        Message message = new Message(request.getText(), java.time.Instant.now());
+        return messageRepo.save(message);
     }
 
     // GET /api/messages
     @GetMapping
     public List<Message> getMessages() {
-        return messages;
+        return messageRepo.findAll();
     }
 
     // GET /api/messages/{id}
     @GetMapping("/{id}")
     public Message getMessageById(@PathVariable Long id) throws MessageNotFoundException {
-        return messages.stream()
-                .filter(msg -> msg.getMessageId().equals(id))
-                .findFirst()
-                .orElseThrow(() -> new MessageNotFoundException("Message not found with id: " + id));
+        return messageRepo.findById(id)
+                .orElseThrow(() -> new MessageNotFoundException("Message not found with id " + id));
     }
 
 }
