@@ -19,7 +19,7 @@ public class MessageController {
     // POST /api/messages
     @PostMapping
     public Message createMessage(@RequestBody CreateMessageRequest request) {
-        Message message = new Message(request.getText(), java.time.Instant.now());
+        Message message = new Message(request.getText(), java.time.Instant.now(), request.getUser());
         return messageRepo.save(message);
     }
 
