@@ -3,7 +3,6 @@ package com.example;
 import jakarta.persistence.*;
 import java.time.Instant;
 
-//test
 @Entity
 @Table(name = "messages")
 public class Message {
