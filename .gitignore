@@ -2,3 +2,9 @@ target/
 
 # Environment variables
 .env
+
+# Front end
+frontend/node_modules/
+# Built front end (npm run build in frontend/)
+src/main/resources/static/
+.DS_Store

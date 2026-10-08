@@ -1,39 +1,63 @@
 package com.example;
 
-import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicLong;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api")
 public class UserController {
-    private final UserRepository userRepo;
+    private final UserService users;
+    private final OpenRouterClient openRouter;
+    private final ClientRegistrationRepository registrations;
 
-    public UserController(UserRepository userRepo) {
-        this.userRepo = userRepo;
+    public UserController(UserService users, OpenRouterClient openRouter, ClientRegistrationRepository registrations) {
+        this.users = users;
+        this.openRouter = openRouter;
+        this.registrations = registrations;
     }
 
-    // POST /api/users
-    @PostMapping
-    public User createUser(@RequestBody CreateUserRequest request) {
-        User user = new User(request.getUsername(), request.getPassword());
-        return userRepo.save(user);
+    public record Provider(String id, String name, String loginUrl) {}
+
+    public record Me(String email, String name, boolean aiEnabled, DiarySettings settings) {
+        static Me of(User user, boolean aiEnabled) {
+            return new Me(user.getEmail(), user.getName(), aiEnabled, DiarySettings.of(user));
+        }
     }
 
-    // GET /api/users
-    @GetMapping
-    public List<User> getUsers() {
-        return userRepo.findAll();
+    // GET /api/auth/providers: the login buttons to show (public)
+    @GetMapping("/auth/providers")
+    public List<Provider> getProviders() {
+        List<Provider> providers = new ArrayList<>();
+        if (registrations instanceof Iterable<?> all) {
+            for (Object o : all) {
+                ClientRegistration r = (ClientRegistration) o;
+                providers.add(new Provider(r.getRegistrationId(), r.getClientName(),
+                        "/oauth2/authorization/" + r.getRegistrationId()));
+            }
+        }
+        return providers;
     }
 
-    // GET /api/users/{id}
-    @GetMapping("/{id}")
-    public User getMessageById(@PathVariable Long id) throws MessageNotFoundException {
-        return userRepo.findById(id)
-                .orElseThrow(() -> new MessageNotFoundException("Message not found with id " + id));
+    // GET /api/me
+    @GetMapping("/me")
+    public Me getMe(OAuth2AuthenticationToken auth) {
+        return Me.of(users.require(auth), openRouter.isConfigured());
     }
 
+    // PUT /api/me/settings
+    @PutMapping("/me/settings")
+    public Me updateSettings(OAuth2AuthenticationToken auth, @RequestBody DiarySettings settings) {
+        return Me.of(users.updateSettings(users.require(auth), settings), openRouter.isConfigured());
+    }
+
+    // GET /api/models: OpenRouter models users may pick
+    @GetMapping("/models")
+    public List<OpenRouterClient.ModelInfo> getModels() {
+        return openRouter.models();
+    }
 }
