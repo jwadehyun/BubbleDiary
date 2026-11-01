@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
@@ -56,12 +57,16 @@ public class MessageService {
         if (text.length() > MAX_TEXT) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Diary entries are limited to " + MAX_TEXT + " characters");
         }
-        Message message = new Message(text, Instant.now(), user);
+        Instant now = Instant.now();
+        int limit = user.getPlan().postsPerDay();
+        if (messageRepo.countByUserAndCreatedAtAfter(user, now.minus(Duration.ofDays(1))) >= limit) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "You can post " + limit + " times a day. Your fans will be here tomorrow!");
+        }
+        Message message = new Message(text, now, user);
         if (image != null && !image.isBlank()) attachImage(message, image);
-        // Nothing for the AI to do when the user turned AI replies off.
-        if (user.getReplyCount() == 0) message.setStatus(MessageStatus.DONE);
         messageRepo.save(message);
-        replyRepo.saveAll(Fans.filler(message, user.getFillerCount(), user.getVoice()));
+        replyRepo.saveAll(Fans.filler(message, user.getPlan(), user.getVoice()));
         return message.getMessageId();
     }
 
@@ -94,22 +99,22 @@ public class MessageService {
                     : "data:" + m.getImageType() + ";base64," + Base64.getEncoder().encodeToString(m.getImage());
             List<String> history = messageRepo.findRecentTexts(u, m.getCreatedAt()).reversed();
             return new ReplyGenerator.Job(id, m.getText() == null ? "" : m.getText(), image, history,
-                    u.getDisplayName(), u.getFandom(), u.getVoice(), u.getModel(), u.getReplyCount());
+                    u.getDisplayName(), u.getFandom(), u.getVoice(), u.getFanPrompt(), u.getPlan());
         });
     }
 
-    /** Returns false when the message no longer exists. */
+    /** Does nothing when the user deleted the message meanwhile. */
     @Transactional
-    public boolean saveAiReplies(Long id, List<ReplyGenerator.FanReply> batch) {
-        Optional<Message> message = messageRepo.findById(id);
-        if (message.isEmpty()) return false;
-        ThreadLocalRandom rnd = ThreadLocalRandom.current();
-        Instant start = message.get().getCreatedAt();
-        replyRepo.saveAll(batch.stream()
-                .map(r -> new Reply(message.get(), r.name(), r.text(), Fans.spread(start, rnd.nextDouble()),
-                        (int) (Math.pow(rnd.nextDouble(), 2) * 300), true))
-                .toList());
-        return true;
+    public void saveAiReplies(Long id, List<ReplyGenerator.FanReply> replies) {
+        messageRepo.findById(id).ifPresent(message -> {
+            ThreadLocalRandom rnd = ThreadLocalRandom.current();
+            Instant start = message.getCreatedAt();
+            replyRepo.saveAll(replies.stream()
+                    .map(r -> new Reply(message, r.name(), r.text(), Fans.spread(start, rnd.nextDouble()),
+                            (int) (Math.pow(rnd.nextDouble(), 2) * (r.kind() == ReplyKind.ANTI ? 10 : 300)), true,
+                            r.kind()))
+                    .toList());
+        });
     }
 
     @Transactional

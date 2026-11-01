@@ -23,9 +23,9 @@ public class UserController {
 
     public record Provider(String id, String name, String loginUrl) {}
 
-    public record Me(String email, String name, boolean aiEnabled, DiarySettings settings) {
+    public record Me(String email, String name, boolean aiEnabled, String plan, DiarySettings settings) {
         static Me of(User user, boolean aiEnabled) {
-            return new Me(user.getEmail(), user.getName(), aiEnabled, DiarySettings.of(user));
+            return new Me(user.getEmail(), user.getName(), aiEnabled, user.getPlan().json(), DiarySettings.of(user));
         }
     }
 
@@ -53,11 +53,5 @@ public class UserController {
     @PutMapping("/me/settings")
     public Me updateSettings(OAuth2AuthenticationToken auth, @RequestBody DiarySettings settings) {
         return Me.of(users.updateSettings(users.require(auth), settings), openRouter.isConfigured());
-    }
-
-    // GET /api/models: OpenRouter models users may pick
-    @GetMapping("/models")
-    public List<OpenRouterClient.ModelInfo> getModels() {
-        return openRouter.models();
     }
 }

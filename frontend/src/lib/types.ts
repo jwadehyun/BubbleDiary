@@ -8,6 +8,7 @@ export interface Reply {
   likes: number;
   /** true for AI-written replies, false for quick generic reactions */
   ai: boolean;
+  kind: 'fan' | 'anti';
 }
 
 export interface Post {
@@ -26,10 +27,11 @@ export interface Settings {
   fandom: string;
   /** an image URL from the login provider, or an uploaded data URL */
   avatar: string | null;
-  model: string;
+  statusText: string | null;
+  profileMessage: string | null;
   voice: FanVoice;
-  replyCount: number;
-  fillerCount: number;
+  /** how the user wants fans to talk; added to the AI prompt */
+  fanPrompt: string | null;
 }
 
 export interface Me {
@@ -37,14 +39,8 @@ export interface Me {
   name: string | null;
   /** false when the server has no OpenRouter API key */
   aiEnabled: boolean;
+  plan: 'free' | 'premium';
   settings: Settings;
-}
-
-export interface ModelInfo {
-  id: string;
-  name: string;
-  free: boolean;
-  vision: boolean;
 }
 
 export interface Provider {

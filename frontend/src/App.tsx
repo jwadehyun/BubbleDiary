@@ -4,7 +4,7 @@ import { Login } from './components/Login';
 import { RepliesView } from './components/RepliesView';
 import { SettingsPanel } from './components/SettingsPanel';
 import { api, AuthError } from './lib/api';
-import type { Me, ModelInfo, Post, Provider, Settings } from './lib/types';
+import type { Me, Post, Provider, Settings } from './lib/types';
 
 // The server writes AI replies in the background; check pending posts this often.
 const POLL_MS = 2000;
@@ -14,8 +14,6 @@ export default function App() {
   const [signedOut, setSignedOut] = useState(false);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [models, setModels] = useState<ModelInfo[]>([]);
-  const [modelsError, setModelsError] = useState('');
   const [toast, setToast] = useState('');
   const [openPostId, setOpenPostId] = useState<number | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -34,10 +32,6 @@ export default function App() {
     setMe(m);
     setSignedOut(false);
     api.posts().then(setPosts).catch(fail);
-    api
-      .models()
-      .then(setModels)
-      .catch((e) => setModelsError(e.message));
   };
 
   useEffect(() => {
@@ -75,11 +69,19 @@ export default function App() {
     setMe((m) => m && { ...m, settings: s });
     clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
-      // An empty avatar tells the server to remove it (null would mean "unchanged").
-      api.updateSettings({ ...s, avatar: s.avatar ?? '' }).catch((e) => {
-        fail(e);
-        api.me().then(setMe).catch(() => {});
-      });
+      // Empty text tells the server to clear a field (null would mean "unchanged").
+      api
+        .updateSettings({
+          ...s,
+          avatar: s.avatar ?? '',
+          statusText: s.statusText ?? '',
+          profileMessage: s.profileMessage ?? '',
+          fanPrompt: s.fanPrompt ?? '',
+        })
+        .catch((e) => {
+          fail(e);
+          api.me().then(setMe).catch(() => {});
+        });
     }, 500);
   };
 
@@ -164,8 +166,6 @@ export default function App() {
       {showSettings && (
         <SettingsPanel
           me={me}
-          models={models}
-          modelsError={modelsError}
           onChange={updateSettings}
           onClearPosts={clearPosts}
           onLogout={logout}

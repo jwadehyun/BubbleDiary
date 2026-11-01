@@ -32,16 +32,24 @@ public class User {
     @Column(columnDefinition = "LONGTEXT")
     private String avatar;
 
-    @Column(nullable = false)
-    private String model;
+    // Shown under the name, like a messenger status ("in Tokyo 🗼").
+    @Column(length = 60)
+    private String statusText;
+
+    @Column(length = 150)
+    private String profileMessage;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private FanVoice voice = FanVoice.ENGLISH;
 
-    private int replyCount = 40;
+    // How the user wants their fans to talk, added to the AI prompt.
+    @Column(length = 300)
+    private String fanPrompt;
 
-    private int fillerCount = 250;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Plan plan = Plan.FREE;
 
     public User() {
     }
@@ -76,15 +84,18 @@ public class User {
     public String getAvatar() { return avatar; }
     public void setAvatar(String avatar) { this.avatar = avatar; }
 
-    public String getModel() { return model; }
-    public void setModel(String model) { this.model = model; }
+    public String getStatusText() { return statusText; }
+    public void setStatusText(String statusText) { this.statusText = statusText; }
+
+    public String getProfileMessage() { return profileMessage; }
+    public void setProfileMessage(String profileMessage) { this.profileMessage = profileMessage; }
 
     public FanVoice getVoice() { return voice; }
     public void setVoice(FanVoice voice) { this.voice = voice; }
 
-    public int getReplyCount() { return replyCount; }
-    public void setReplyCount(int replyCount) { this.replyCount = replyCount; }
+    public String getFanPrompt() { return fanPrompt; }
+    public void setFanPrompt(String fanPrompt) { this.fanPrompt = fanPrompt; }
 
-    public int getFillerCount() { return fillerCount; }
-    public void setFillerCount(int fillerCount) { this.fillerCount = fillerCount; }
+    public Plan getPlan() { return plan; }
+    public void setPlan(Plan plan) { this.plan = plan; }
 }

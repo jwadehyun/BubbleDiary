@@ -13,6 +13,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -64,6 +65,7 @@ class BubbleDiaryApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Han Jisung"))
                 .andExpect(jsonPath("$.aiEnabled").value(false))
+                .andExpect(jsonPath("$.plan").value("free"))
                 .andExpect(jsonPath("$.settings.displayName").value("Jisung"))
                 .andExpect(jsonPath("$.settings.fandom").value("Bubblies"))
                 .andExpect(jsonPath("$.settings.voice").value("english"));
@@ -81,9 +83,9 @@ class BubbleDiaryApplicationTests {
         RequestPostProcessor me = user(UUID.randomUUID().toString());
         mvc.perform(put("/api/me/settings").with(me).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fillerCount\": 12, \"voice\": \"korean\", \"fandom\": \"STAY\"}"))
+                        .content("{\"voice\": \"korean\", \"fandom\": \"STAY\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.settings.fillerCount").value(12))
+                .andExpect(jsonPath("$.settings.voice").value("korean"))
                 .andExpect(jsonPath("$.settings.fandom").value("STAY"));
 
         JsonNode created = body(mvc.perform(post("/api/messages").with(me).with(csrf())
@@ -91,7 +93,8 @@ class BubbleDiaryApplicationTests {
                         .content("{\"text\":\"ate tteokbokki today\",\"image\":\"data:image/png;base64,iVBORw0KGgo=\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.text").value("ate tteokbokki today"))
-                .andExpect(jsonPath("$.replyCount").value(12)));
+                // Free plan: 80 generic fans + 4 generic anti-fans right away.
+                .andExpect(jsonPath("$.replyCount").value(84)));
         long id = created.path("id").asLong();
         assertThat(created.path("imageUrl").asString()).isEqualTo("/api/messages/" + id + "/image");
 
@@ -107,7 +110,8 @@ class BubbleDiaryApplicationTests {
 
         mvc.perform(get("/api/messages/" + id + "/replies").with(me))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(12))
+                .andExpect(jsonPath("$.length()").value(84))
+                .andExpect(jsonPath("$[?(@.kind == 'anti')]", hasSize(4)))
                 .andExpect(jsonPath("$[0].ai").value(false));
         mvc.perform(get("/api/messages/" + id + "/image").with(me))
                 .andExpect(status().isOk())
@@ -131,10 +135,39 @@ class BubbleDiaryApplicationTests {
     }
 
     @Test
-    void rejectsPaidModelsByDefault() throws Exception {
-        mvc.perform(put("/api/me/settings").with(user("model-user")).with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"model\":\"openai/gpt-5\"}"))
-                .andExpect(status().isBadRequest());
+    void savesAndClearsProfileFields() throws Exception {
+        RequestPostProcessor me = user(UUID.randomUUID().toString());
+        mvc.perform(put("/api/me/settings").with(me).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"statusText": " in Tokyo 🗼 ", "profileMessage": "hi STAY",
+                                 "fanPrompt": "fans are dramatic and call me bread"}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.settings.statusText").value("in Tokyo 🗼"))
+                .andExpect(jsonPath("$.settings.profileMessage").value("hi STAY"))
+                .andExpect(jsonPath("$.settings.fanPrompt").value("fans are dramatic and call me bread"));
+
+        // Fields left out stay put; "" clears one; long text is cut to its limit.
+        mvc.perform(put("/api/me/settings").with(me).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"statusText\": \"\", \"fanPrompt\": \"" + "x".repeat(400) + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.settings.statusText").doesNotExist())
+                .andExpect(jsonPath("$.settings.profileMessage").value("hi STAY"))
+                .andExpect(jsonPath("$.settings.fanPrompt").value("x".repeat(300)));
+    }
+
+    @Test
+    void limitsPostsPerDay() throws Exception {
+        RequestPostProcessor me = user(UUID.randomUUID().toString());
+        for (int i = 0; i < Plan.FREE.postsPerDay(); i++) {
+            mvc.perform(post("/api/messages").with(me).with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"post " + i + "\"}"))
+                    .andExpect(status().isOk());
+        }
+        mvc.perform(post("/api/messages").with(me).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"one too many\"}"))
+                .andExpect(status().isTooManyRequests());
     }
 
     @Test
@@ -146,7 +179,7 @@ class BubbleDiaryApplicationTests {
                 ```""";
         var replies = generator.parseReplies(raw);
         assertThat(replies).hasSize(2);
-        assertThat(replies.get(0)).isEqualTo(new ReplyGenerator.FanReply("moon_stan", "eat well!!"));
+        assertThat(replies.get(0)).isEqualTo(new ReplyGenerator.FanReply("moon_stan", "eat well!!", ReplyKind.FAN));
         assertThat(replies.get(1).text()).isEqualTo("omg hi");
         assertThat(replies.get(1).name()).isNotBlank();
     }

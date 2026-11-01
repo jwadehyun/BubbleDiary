@@ -1,25 +1,18 @@
-import { useState } from 'react';
 import { compressImage } from '../lib/image';
-import type { FanVoice, Me, ModelInfo, Settings } from '../lib/types';
+import type { FanVoice, Me, Settings } from '../lib/types';
 import { Avatar } from './Avatar';
 
 interface Props {
   me: Me;
-  models: ModelInfo[];
-  modelsError: string;
   onChange: (s: Settings) => void;
   onClearPosts: () => void;
   onLogout: () => void;
   onClose: () => void;
 }
 
-export function SettingsPanel({ me, models, modelsError, onChange, onClearPosts, onLogout, onClose }: Props) {
+export function SettingsPanel({ me, onChange, onClearPosts, onLogout, onClose }: Props) {
   const settings = me.settings;
-  const [freeOnly, setFreeOnly] = useState(true);
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onChange({ ...settings, [key]: value });
-
-  const visible = models.filter((m) => !freeOnly || m.free || m.id === settings.model);
-  const current = models.find((m) => m.id === settings.model);
 
   return (
     <div className="screen overlay slide-up">
@@ -65,37 +58,24 @@ export function SettingsPanel({ me, models, modelsError, onChange, onClearPosts,
               Remove photo
             </button>
           )}
-        </section>
-
-        <section>
-          <h3>AI (OpenRouter)</h3>
-          <p className="hint first">
-            {me.aiEnabled
-              ? "Replies are written with the server's OpenRouter key. You only choose the model."
-              : 'The server has no OpenRouter key yet, so only quick reactions appear.'}
-          </p>
-
           <label className="field">
-            Model
-            <select value={settings.model} onChange={(e) => set('model', e.target.value)}>
-              {!current && <option value={settings.model}>{settings.model}</option>}
-              {visible.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                  {m.free ? ' · free' : ''}
-                  {m.vision ? ' · 📷' : ''}
-                </option>
-              ))}
-            </select>
+            Status
+            <input
+              value={settings.statusText ?? ''}
+              maxLength={60}
+              placeholder="in Tokyo 🗼"
+              onChange={(e) => set('statusText', e.target.value)}
+            />
           </label>
-          <label className="check">
-            <input type="checkbox" checked={freeOnly} onChange={(e) => setFreeOnly(e.target.checked)} />
-            Show free models only
+          <label className="field">
+            Profile message
+            <input
+              value={settings.profileMessage ?? ''}
+              maxLength={150}
+              placeholder="thank you for always being here 💜"
+              onChange={(e) => set('profileMessage', e.target.value)}
+            />
           </label>
-          {modelsError && <p className="error-text">{modelsError}</p>}
-          <p className="hint">
-            📷 = can see your photos. Other models only know a photo was attached. Free models have daily limits.
-          </p>
         </section>
 
         <section>
@@ -109,30 +89,20 @@ export function SettingsPanel({ me, models, modelsError, onChange, onClearPosts,
             </select>
           </label>
           <label className="field">
-            AI-written replies per post: <b>{settings.replyCount}</b>
-            <input
-              type="range"
-              min={5}
-              max={200}
-              step={5}
-              value={settings.replyCount}
-              onChange={(e) => set('replyCount', Number(e.target.value))}
-            />
-          </label>
-          <label className="field">
-            Quick reactions per post: <b>{settings.fillerCount}</b>
-            <input
-              type="range"
-              min={0}
-              max={1000}
-              step={10}
-              value={settings.fillerCount}
-              onChange={(e) => set('fillerCount', Number(e.target.value))}
+            How should your fans talk?
+            <textarea
+              rows={3}
+              maxLength={300}
+              value={settings.fanPrompt ?? ''}
+              placeholder="e.g. they call me bread, tease me about my dance practice, and are very dramatic"
+              onChange={(e) => set('fanPrompt', e.target.value)}
             />
           </label>
           <p className="hint">
-            Quick reactions ("😭😭", "ILY", "eat well!!") fill out the feed without using AI. More AI replies take longer
-            and use more of your free quota.
+            {me.plan === 'premium'
+              ? 'Premium: 230 replies per post (30 written by AI) and no anti-fans.'
+              : 'Free: 100 replies per post. 15 fans and 1 anti-fan write about your post with AI; the rest are quick reactions.'}
+            {!me.aiEnabled && ' The server has no OpenRouter key yet, so only quick reactions appear.'}
           </p>
         </section>
 

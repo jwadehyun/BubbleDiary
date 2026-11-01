@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 
-/** Fan usernames and the quick generic reactions that fill out the feed without using AI. */
+/** Fan usernames and the quick generic reactions (from fans and anti-fans) that fill out the feed without AI. */
 public final class Fans {
 
     private static final List<String> FIRST = List.of("star", "moon", "luv", "honey", "peach", "cloud", "mochi",
@@ -25,6 +25,15 @@ public final class Fans {
             "푹 쉬어!!", "❤️❤️❤️", "ㅋㅋㅋㅋㅋ", "너무 좋다", "감기 조심해", "최고야", "심장 아파", "알림 보고 바로 왔어", "꿀잠 자",
             "사랑해 사랑해", "행복하자", "울컥했어", "천사다", "헉", "내 비타민 ✨", "오늘 하루도 수고했어", "진짜 귀엽다");
 
+    // Anti-fans are snarky, never cruel: no slurs and nothing about looks, bodies or self-harm.
+    private static final List<String> ENGLISH_ANTI = List.of(
+            "who asked", "mid", "flop era fr", "this is so boring", "ok and?", "nobody cares tbh", "not this again 🙄",
+            "overrated", "the bar is on the floor", "skipped", "zzz", "and this is news because?", "pass",
+            "they're trying way too hard");
+    private static final List<String> KOREAN_ANTI = List.of(
+            "그래서 어쩌라고", "노잼", "관심 없음", "또 이거야?", "별로다", "ㅋ 그래", "패스", "지루해", "이게 왜 인기임?",
+            "그냥 그래");
+
     private Fans() {
     }
 
@@ -36,12 +45,25 @@ public final class Fans {
         return pick(FIRST) + "." + pick(FIRST) + (rnd.nextBoolean() ? "♡" : "");
     }
 
-    public static List<Reply> filler(Message message, int count, FanVoice voice) {
-        List<String> pool = switch (voice) {
+    /** The generic fan and anti-fan reactions the user's plan gets. */
+    public static List<Reply> filler(Message message, Plan plan, FanVoice voice) {
+        List<String> fans = switch (voice) {
             case ENGLISH -> ENGLISH;
             case KOREAN -> KOREAN;
             case MIXED -> concat(ENGLISH, KOREAN);
         };
+        List<String> antis = switch (voice) {
+            case ENGLISH -> ENGLISH_ANTI;
+            case KOREAN -> KOREAN_ANTI;
+            case MIXED -> concat(ENGLISH_ANTI, KOREAN_ANTI);
+        };
+        return Stream.concat(
+                        replies(message, fans, plan.genericFans(), ReplyKind.FAN),
+                        replies(message, antis, plan.genericAntis(), ReplyKind.ANTI))
+                .toList();
+    }
+
+    private static Stream<Reply> replies(Message message, List<String> pool, int count, ReplyKind kind) {
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
         return Stream.generate(() -> new Reply(
                         message,
@@ -49,10 +71,11 @@ public final class Fans {
                         pick(pool),
                         // Spread over the first ~10 minutes, weighted toward the start like a real notification rush.
                         spread(message.getCreatedAt(), Math.pow(rnd.nextDouble(), 2)),
-                        (int) (Math.pow(rnd.nextDouble(), 3) * 40),
-                        false))
-                .limit(count)
-                .toList();
+                        // Nobody likes the haters much.
+                        (int) (Math.pow(rnd.nextDouble(), 3) * (kind == ReplyKind.ANTI ? 3 : 40)),
+                        false,
+                        kind))
+                .limit(count);
     }
 
     /** A time up to 10 minutes after the post; fraction is 0..1. */

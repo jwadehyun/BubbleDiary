@@ -57,6 +57,7 @@ export function ChatView({ settings, aiEnabled, posts, onSend, onOpen, onRetry, 
         <div className="topbar-title">
           <strong>{settings.displayName}</strong>
           <span>
+            {settings.statusText ? `${settings.statusText} · ` : ''}
             {settings.fandom} · {compact(totalReplies)} replies
           </span>
         </div>

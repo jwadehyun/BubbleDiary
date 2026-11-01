@@ -6,7 +6,7 @@ import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.Instant;
 
-/** A fan's reply to a message: either written by the AI or a quick generic reaction. */
+/** A fan's (or anti-fan's) reply to a message: either written by the AI or a quick generic reaction. */
 @Entity
 @Table(name = "replies", indexes = @Index(columnList = "message_id"))
 public class Reply {
@@ -24,7 +24,7 @@ public class Reply {
     @Column(nullable = false)
     private String fan;
 
-    @Column(nullable = false, length = 2000)
+    @Column(nullable = false, length = 300)
     private String text;
 
     @Column(nullable = false)
@@ -35,16 +35,21 @@ public class Reply {
     // true for AI-written replies, false for quick generic reactions
     private boolean ai;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ReplyKind kind = ReplyKind.FAN;
+
     public Reply() {
     }
 
-    public Reply(Message message, String fan, String text, Instant createdAt, int likes, boolean ai) {
+    public Reply(Message message, String fan, String text, Instant createdAt, int likes, boolean ai, ReplyKind kind) {
         this.message = message;
         this.fan = fan;
         this.text = text;
         this.createdAt = createdAt;
         this.likes = likes;
         this.ai = ai;
+        this.kind = kind;
     }
 
     public Long getReplyId() { return replyId; }
@@ -54,4 +59,5 @@ public class Reply {
     public Instant getCreatedAt() { return createdAt; }
     public int getLikes() { return likes; }
     public boolean isAi() { return ai; }
+    public ReplyKind getKind() { return kind; }
 }

@@ -40,6 +40,7 @@ Some ideas on how to raise sales
 - Paying removes hate comments
 - Paying allows you to get more responses, both generic and AI generated
 - I want to put sending pictures behind a paywall service as it might be expensive to process images in AI models
+- There should be a daily limit of 5 posts per day unless you pay
 
 
 UI Design

@@ -173,9 +173,10 @@ input, textarea, select { font: inherit; color: inherit; }
 .settings section { background: var(--surface); border-radius: 16px; padding: 14px; margin-top: 14px; }
 .settings h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; margin-bottom: 12px; }
-.field input:not([type='range']), .field select {
+.field input:not([type='range']), .field select, .field textarea {
   border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 9px 11px; font-size: 15px; width: 100%;
 }
+.field textarea { resize: vertical; }
 .field input[type='range'] { accent-color: var(--accent); }
 .key-row { display: flex; gap: 8px; align-items: center; }
 .check { display: flex; gap: 8px; align-items: center; font-size: 13px; }

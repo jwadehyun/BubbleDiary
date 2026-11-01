@@ -1,4 +1,4 @@
-import type { Me, ModelInfo, Post, Provider, Reply, Settings } from './types';
+import type { Me, Post, Provider, Reply, Settings } from './types';
 
 /** The session ended (or never started); show the login screen. */
 export class AuthError extends Error {}
@@ -32,7 +32,6 @@ export const api = {
   providers: () => request<Provider[]>('GET', '/api/auth/providers'),
   me: () => request<Me>('GET', '/api/me'),
   updateSettings: (s: Partial<Settings>) => request<Me>('PUT', '/api/me/settings', s),
-  models: () => request<ModelInfo[]>('GET', '/api/models'),
 
   posts: () => request<Post[]>('GET', '/api/messages'),
   post: (id: number) => request<Post>('GET', `/api/messages/${id}`),

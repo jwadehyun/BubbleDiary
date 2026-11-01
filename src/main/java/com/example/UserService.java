@@ -13,11 +13,9 @@ public class UserService {
     private static final int MAX_AVATAR_CHARS = 500_000;
 
     private final UserRepository userRepo;
-    private final OpenRouterClient openRouter;
 
-    public UserService(UserRepository userRepo, OpenRouterClient openRouter) {
+    public UserService(UserRepository userRepo) {
         this.userRepo = userRepo;
-        this.openRouter = openRouter;
     }
 
     /** Creates the user on first login and refreshes their email and name on later logins. */
@@ -57,12 +55,9 @@ public class UserService {
             }
             user.setAvatar(s.avatar().isBlank() ? null : s.avatar());
         }
-        if (s.model() != null) {
-            if (!openRouter.isAllowed(s.model())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "That model isn't allowed on this server");
-            }
-            user.setModel(s.model());
-        }
+        if (s.statusText() != null) user.setStatusText(optional(s.statusText(), 60));
+        if (s.profileMessage() != null) user.setProfileMessage(optional(s.profileMessage(), 150));
+        if (s.fanPrompt() != null) user.setFanPrompt(optional(s.fanPrompt(), 300));
         if (s.voice() != null) {
             try {
                 user.setVoice(FanVoice.parse(s.voice()));
@@ -70,8 +65,6 @@ public class UserService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown fan voice: " + s.voice());
             }
         }
-        if (s.replyCount() != null) user.setReplyCount(clamp(s.replyCount(), 0, 200));
-        if (s.fillerCount() != null) user.setFillerCount(clamp(s.fillerCount(), 0, 1000));
         return userRepo.save(user);
     }
 
@@ -83,7 +76,6 @@ public class UserService {
         // Google calls the photo "picture"; GitHub calls it "avatar_url".
         String picture = principal.getAttribute("picture");
         user.setAvatar(picture != null ? picture : principal.getAttribute("avatar_url"));
-        user.setModel(openRouter.defaultModel());
         return user;
     }
 
@@ -98,7 +90,10 @@ public class UserService {
         return trimmed.length() > max ? trimmed.substring(0, max) : trimmed;
     }
 
-    private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
+    /** Text the user may leave empty; blank clears it. */
+    private static String optional(String value, int max) {
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) return null;
+        return trimmed.length() > max ? trimmed.substring(0, max) : trimmed;
     }
 }

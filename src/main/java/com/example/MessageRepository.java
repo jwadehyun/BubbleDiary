@@ -25,6 +25,8 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     Optional<Message> findByMessageIdAndUser(Long messageId, User user);
 
+    long countByUserAndCreatedAtAfter(User user, Instant since);
+
     @Query("select m.text from Message m where m.user = :user and m.createdAt < :before order by m.createdAt desc limit 3")
     List<String> findRecentTexts(User user, Instant before);
 

@@ -8,8 +8,9 @@ A diary styled like the Korean fan app Bubble. You post diary entries or photos 
 ## Setup
 
 1. **MySQL**: create a database called `bubblediary`.
-   If you ran an earlier version, drop the old tables once, because their columns changed:
-   `DROP TABLE IF EXISTS replies, messages, users;`
+   If you ran an earlier version, its `users` table has columns that no longer exist and would block new sign-ups. Either keep your data:
+   `ALTER TABLE users DROP COLUMN model, DROP COLUMN reply_count, DROP COLUMN filler_count;`
+   or start fresh: `DROP TABLE IF EXISTS replies, messages, users;`
 2. **Google OAuth**: at https://console.cloud.google.com/apis/credentials create an *OAuth client ID* (Web application) with these authorized redirect URIs:
    - `http://localhost:8080/login/oauth2/code/google`
    - `http://localhost:5173/login/oauth2/code/google` (for the Vite dev server)
@@ -34,13 +35,29 @@ Single server: run `npm run build` in `frontend/`. That writes the app to `src/m
 
 ## How replies work
 
-- **Quick reactions** (default 250): generic replies like "😭😭" and "eat well!!", created as soon as you post.
-- **AI replies** (default 40): written by an OpenRouter model about your specific post, 25 at a time, in the background. The app checks every 2 seconds while a post is "fans typing…", so the count ticks up.
-- The server's key pays for all users, so only free models are offered unless you set `OPENROUTER_ALLOW_PAID=true`.
+Each post gets replies according to the user's plan (`Plan.java`):
+
+| | Free | Premium |
+|---|---|---|
+| Quick fan reactions ("😭😭", "eat well!!") | 80 | 200 |
+| Quick anti-fan reactions ("who asked", "mid") | 4 | 0 |
+| AI-written fan replies | 15 | 30 |
+| AI-written anti-fan replies | 1 | 0 |
+| Posts per day | 5 | unlimited |
+
+- Quick reactions are saved the moment you post. The AI replies come from one OpenRouter call in the background, and the app checks every 2 seconds while a post shows "fans typing…".
+- AI replies are capped at 150 characters. Anti-fans are snarky about the post, never about the person.
+- Users can describe how their fans talk ("How should your fans talk?" in settings). That text is added to the prompt as style guidance.
+- **The server chooses the model**, not the user, because the server's key pays. Set `OPENROUTER_MODEL_FREE` / `OPENROUTER_MODEL_PREMIUM` in `.env`. The default is a free model, which is fine for development. For production, `anthropic/claude-haiku-5.5` costs about $0.001 per post.
+- Nobody can become premium yet; payments come later.
 
 ## Tests
 
 `mvn test` runs against an in-memory H2 database with a mocked login. It doesn't need MySQL, Google or OpenRouter.
+
+- `ReplyMixTests`: unit tests for the reply mix, the length cap, parsing and the prompt (no Spring, milliseconds).
+- `AiRepliesTests`: the whole posting flow with a fake AI, checking a free post ends with exactly 100 replies.
+- `BubbleDiaryApplicationTests`: login, CSRF, settings, the daily post limit, and that users can't see each other's posts.
 
 ## API
 
@@ -50,7 +67,6 @@ All `/api` endpoints except `/api/auth/providers` require login. Write requests 
 |---|---|---|
 | GET | `/api/auth/providers` | Login buttons |
 | GET / PUT | `/api/me`, `/api/me/settings` | Profile and diary settings |
-| GET | `/api/models` | Models you can pick |
 | GET / POST / DELETE | `/api/messages` | List, create, delete all |
 | GET / DELETE | `/api/messages/{id}` | One post (poll while `pending`) |
 | GET | `/api/messages/{id}/replies`, `/image` | Fan replies, photo |

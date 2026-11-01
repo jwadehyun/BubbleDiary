@@ -36,8 +36,8 @@ public class OpenRouterClient {
     private final RestClient http;
     private final JsonMapper json;
     private final String apiKey;
-    private final String defaultModel;
-    private final boolean allowPaid;
+    private final String freeModel;
+    private final String premiumModel;
     private final String referer;
 
     private volatile List<ModelInfo> cachedModels = List.of();
@@ -46,8 +46,8 @@ public class OpenRouterClient {
     public OpenRouterClient(
             JsonMapper json,
             @Value("${openrouter.api-key:}") String apiKey,
-            @Value("${openrouter.default-model:google/gemma-4-31b-it:free}") String defaultModel,
-            @Value("${openrouter.allow-paid:false}") boolean allowPaid,
+            @Value("${openrouter.model.free:openrouter/free}") String freeModel,
+            @Value("${openrouter.model.premium:${openrouter.model.free:openrouter/free}}") String premiumModel,
             @Value("${openrouter.referer:http://localhost:8080}") String referer) {
         JdkClientHttpRequestFactory requests = new JdkClientHttpRequestFactory();
         // Free models can take a while to write a batch of replies.
@@ -55,8 +55,8 @@ public class OpenRouterClient {
         this.http = RestClient.builder().baseUrl(API).requestFactory(requests).build();
         this.json = json;
         this.apiKey = apiKey.trim();
-        this.defaultModel = defaultModel;
-        this.allowPaid = allowPaid;
+        this.freeModel = freeModel.trim();
+        this.premiumModel = premiumModel.trim();
         this.referer = referer;
     }
 
@@ -64,11 +64,12 @@ public class OpenRouterClient {
         return !apiKey.isEmpty();
     }
 
-    public String defaultModel() {
-        return defaultModel;
+    /** The server picks the model, so the cost of each plan is predictable. */
+    public String modelFor(Plan plan) {
+        return plan == Plan.PREMIUM ? premiumModel : freeModel;
     }
 
-    /** Text models users may pick. Only free ones unless openrouter.allow-paid is set, since the server pays. */
+    /** Text models on OpenRouter, cached for a few minutes. */
     public List<ModelInfo> models() {
         if (Duration.between(cachedAt, Instant.now()).compareTo(MODELS_TTL) > 0) {
             try {
@@ -78,12 +79,7 @@ public class OpenRouterClient {
                 log.warn("Could not load OpenRouter models: {}", e.getMessage());
             }
         }
-        return cachedModels.stream().filter(m -> allowPaid || m.free()).toList();
-    }
-
-    public boolean isAllowed(String model) {
-        if (allowPaid || model.endsWith(":free") || model.equals(FREE_ROUTER)) return true;
-        return models().stream().anyMatch(m -> m.id().equals(model));
+        return cachedModels;
     }
 
     /**
