@@ -6,24 +6,62 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.RequestCacheConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+/**
+ * Two ways in. The mobile app sends "Authorization: Bearer <token>" (first chain); the web app uses the OAuth redirect
+ * and a session cookie (second chain). Either way, every /api endpoint except sign-in needs a signed-in user.
+ */
 @Configuration
 public class SecurityConfig {
 
+    /** Requests from the mobile app: a bearer token, or the endpoints that hand one out. */
+    private static final RequestMatcher APP_REQUESTS = new OrRequestMatcher(
+            request -> {
+                String header = request.getHeader("Authorization");
+                return header != null && header.regionMatches(true, 0, "Bearer ", 0, 7);
+            },
+            PathPatternRequestMatcher.withDefaults().matcher("/api/auth/token"),
+            PathPatternRequestMatcher.withDefaults().matcher("/api/auth/refresh"),
+            PathPatternRequestMatcher.withDefaults().matcher("/api/auth/logout"));
+
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, UserService users) throws Exception {
+    @Order(1)
+    SecurityFilterChain appFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher(APP_REQUESTS)
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .anyRequest().authenticated())
+                // Checks the token's signature and expiry with JwtConfig's decoder; a bad token gets a 401.
+                .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // CSRF attacks ride on cookies the browser sends by itself. A bearer header is never sent that way.
+                .csrf(AbstractHttpConfigurer::disable);
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
+    SecurityFilterChain webFilterChain(HttpSecurity http, UserService users) throws Exception {
         http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()

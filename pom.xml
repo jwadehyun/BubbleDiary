@@ -42,6 +42,12 @@
             <artifactId>spring-boot-starter-security-oauth2-client</artifactId>
         </dependency>
 
+        <!-- Bearer tokens for the mobile app: verifies Google/Apple ID tokens and our own access tokens -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+        </dependency>
+
         <!-- Loads .env into Spring properties -->
         <dependency>
             <groupId>me.paulschwarz</groupId>

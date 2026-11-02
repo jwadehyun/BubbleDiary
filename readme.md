@@ -58,15 +58,28 @@ Each post gets replies according to the user's plan (`Plan.java`):
 - `ReplyMixTests`: unit tests for the reply mix, the length cap, parsing and the prompt (no Spring, milliseconds).
 - `AiRepliesTests`: the whole posting flow with a fake AI, checking a free post ends with exactly 100 replies.
 - `BubbleDiaryApplicationTests`: login, CSRF, settings, the daily post limit, and that users can't see each other's posts.
+- `AppAuthTests`: app sign-in, refresh tokens, account deletion, and web + app sharing one account (Google is faked).
+- `IdTokenVerifierTests`: forged, expired and wrong-app ID tokens are rejected.
+
+## Sign-in
+
+- **Web**: Google's sign-in page redirects back to the server, which keeps you signed in with a session cookie. Write requests need the `X-XSRF-TOKEN` header (copied from the `XSRF-TOKEN` cookie).
+- **Mobile app**: the app signs in natively with Google or Apple and sends the resulting ID token to `POST /api/auth/token`. The server checks it was really signed by Google/Apple for this app, then returns its own tokens:
+  - `accessToken`: sent as `Authorization: Bearer …` on every request, valid for 1 hour. No CSRF header needed.
+  - `refreshToken`: traded at `POST /api/auth/refresh` for a new pair when the access token expires. Each one works once and lasts 30 days.
+- Signing in with the same Google account on the web and in the app gives the same diary.
+- Set `APP_JWT_SECRET` in production. Without it the server makes a random key at startup, so app sign-ins end on every restart.
 
 ## API
 
-All `/api` endpoints except `/api/auth/providers` require login. Write requests need the `X-XSRF-TOKEN` header (copied from the `XSRF-TOKEN` cookie).
+All `/api` endpoints except `/api/auth/*` require sign-in.
 
 | Method | Path | |
 |---|---|---|
-| GET | `/api/auth/providers` | Login buttons |
+| GET | `/api/auth/providers` | Web login buttons |
+| POST | `/api/auth/token`, `/refresh`, `/logout` | App sign-in: `{provider, idToken}`, then `{refreshToken}` |
 | GET / PUT | `/api/me`, `/api/me/settings` | Profile and diary settings |
+| DELETE | `/api/me` | Delete the account and all its posts |
 | GET / POST / DELETE | `/api/messages` | List, create, delete all |
 | GET / DELETE | `/api/messages/{id}` | One post (poll while `pending`) |
 | GET | `/api/messages/{id}/replies`, `/image` | Fan replies, photo |

@@ -8,26 +8,48 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Optional;
+
 @Service
 public class UserService {
     private static final int MAX_AVATAR_CHARS = 500_000;
 
     private final UserRepository userRepo;
+    private final MessageRepository messageRepo;
+    private final RefreshTokenRepository refreshTokens;
 
-    public UserService(UserRepository userRepo) {
+    public UserService(UserRepository userRepo, MessageRepository messageRepo, RefreshTokenRepository refreshTokens) {
         this.userRepo = userRepo;
+        this.messageRepo = messageRepo;
+        this.refreshTokens = refreshTokens;
     }
 
-    /** Creates the user on first login and refreshes their email and name on later logins. */
+    /** Web sign-in. */
     @Transactional
     public User upsert(OAuth2AuthenticationToken token) {
-        String provider = token.getAuthorizedClientRegistrationId();
         OAuth2User principal = token.getPrincipal();
-        User user = userRepo.findByProviderAndProviderId(provider, token.getName())
-                .orElseGet(() -> newUser(provider, token.getName(), principal));
-        user.setEmail(principal.getAttribute("email"));
-        user.setName(profileName(principal));
+        // Google calls the photo "picture"; GitHub calls it "avatar_url".
+        String picture = principal.getAttribute("picture");
+        return upsert(new LoginIdentity(token.getAuthorizedClientRegistrationId(), token.getName(),
+                principal.getAttribute("email"), profileName(principal), principal.getAttribute("given_name"),
+                picture != null ? picture : principal.getAttribute("avatar_url")));
+    }
+
+    /**
+     * Creates the user on first sign-in and refreshes their email and name on later ones. Web and app sign-ins with
+     * the same Google account land on the same user, since both are keyed by Google's id for them.
+     */
+    @Transactional
+    public User upsert(LoginIdentity id) {
+        User user = userRepo.findByProviderAndProviderId(id.provider(), id.subject()).orElseGet(() -> newUser(id));
+        // Apple only sends the name on the very first sign-in, so don't wipe what we have.
+        if (id.email() != null) user.setEmail(id.email());
+        if (id.name() != null) user.setName(id.name());
         return userRepo.save(user);
+    }
+
+    public Optional<User> byId(Long id) {
+        return userRepo.findById(id);
     }
 
     /** The signed-in user. Creates them if missing, e.g. after the database was reset. */
@@ -68,14 +90,18 @@ public class UserService {
         return userRepo.save(user);
     }
 
-    private User newUser(String provider, String providerId, OAuth2User principal) {
-        User user = new User(provider, providerId);
-        String name = profileName(principal);
-        String firstName = principal.getAttribute("given_name");
-        user.setDisplayName(firstName != null ? firstName : name != null ? name : "Me");
-        // Google calls the photo "picture"; GitHub calls it "avatar_url".
-        String picture = principal.getAttribute("picture");
-        user.setAvatar(picture != null ? picture : principal.getAttribute("avatar_url"));
+    /** Deletes the user and everything they posted. App stores require this to be possible from the app. */
+    @Transactional
+    public void deleteAccount(User user) {
+        messageRepo.deleteAllOwned(user);
+        refreshTokens.deleteAllOwned(user);
+        userRepo.deleteById(user.getId());
+    }
+
+    private static User newUser(LoginIdentity id) {
+        User user = new User(id.provider(), id.subject());
+        user.setDisplayName(id.givenName() != null ? id.givenName() : id.name() != null ? id.name() : "Me");
+        user.setAvatar(id.picture());
         return user;
     }
 
