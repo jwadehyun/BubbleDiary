@@ -119,10 +119,7 @@ public class MessageService {
 
     @Transactional
     public void finish(Long id, MessageStatus status, String error) {
-        messageRepo.findById(id).ifPresent(m -> {
-            m.setStatus(status);
-            m.setError(error == null ? null : error.length() > 1000 ? error.substring(0, 1000) : error);
-        });
+        messageRepo.updateStatus(id, status, error == null ? null : error.length() > 1000 ? error.substring(0, 1000) : error);
     }
 
     @Transactional

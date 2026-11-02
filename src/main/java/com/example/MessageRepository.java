@@ -38,6 +38,11 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     @Query("delete from Message m where m.user = :user")
     void deleteAllOwned(User user);
 
+    // Updates nothing if the user deleted the message while its replies were being written.
+    @Modifying
+    @Query("update Message m set m.status = :status, m.error = :error where m.messageId = :id")
+    int updateStatus(Long id, MessageStatus status, String error);
+
     @Modifying
     @Query("update Message m set m.status = :to, m.error = :error where m.status = :from")
     int updateAllStatus(MessageStatus from, MessageStatus to, String error);

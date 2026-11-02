@@ -1,0 +1,43 @@
+# Runs on every push and pull request, so nothing broken gets merged.
+# Results show up on GitHub under the "Actions" tab and as a check on each pull request.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      # Testcontainers starts a real MySQL in Docker, which GitHub's runners have.
+      - run: mvn -B test
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      # Type-checks and builds the web app.
+      - run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Makes sure the image still builds; it isn't published anywhere.
+      - run: docker build -t bubblediary .

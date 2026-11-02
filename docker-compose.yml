@@ -1,0 +1,38 @@
+# The whole app on your machine: MySQL plus the server (and web app) at http://localhost:8080.
+#   docker compose up --build      start (add -d to run in the background)
+#   docker compose down            stop; add -v to also delete the database
+# Google/OpenRouter keys come from .env. The database settings below override the ones in .env.
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: bubblediary
+      MYSQL_USER: bubble
+      MYSQL_PASSWORD: bubble
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # 127.0.0.1 (not localhost) so this only passes once MySQL accepts network connections.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-ububble", "-pbubble"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DB_URL: jdbc:mysql://db:3306/bubblediary?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USERNAME: bubble
+      DB_PASSWORD: bubble
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  mysql-data:

@@ -7,10 +7,9 @@ A diary styled like the Korean fan app Bubble. You post diary entries or photos 
 
 ## Setup
 
-1. **MySQL**: create a database called `bubblediary`.
-   If you ran an earlier version, its `users` table has columns that no longer exist and would block new sign-ups. Either keep your data:
-   `ALTER TABLE users DROP COLUMN model, DROP COLUMN reply_count, DROP COLUMN filler_count;`
-   or start fresh: `DROP TABLE IF EXISTS replies, messages, users;`
+1. **MySQL**: create an empty database called `bubblediary` (or skip this and use Docker, below). The server creates the tables itself on startup (see *Database changes*).
+   If you ran a version from before Flyway, empty the database once, because Flyway won't start on tables it didn't create:
+   `DROP TABLE IF EXISTS refresh_tokens, replies, messages, users;`
 2. **Google OAuth**: at https://console.cloud.google.com/apis/credentials create an *OAuth client ID* (Web application) with these authorized redirect URIs:
    - `http://localhost:8080/login/oauth2/code/google`
    - `http://localhost:5173/login/oauth2/code/google` (for the Vite dev server)
@@ -21,7 +20,15 @@ GitHub login works too: uncomment the GitHub lines in `application.properties`, 
 
 ## Run
 
-Development (hot reload): start Spring Boot from IntelliJ (or `mvn spring-boot:run`), then:
+**With Docker** (simplest, no MySQL or Java install needed): fill in `.env`, then
+
+```sh
+docker compose up --build
+```
+
+and open http://localhost:8080. This runs MySQL and the server in containers; the database lives in a Docker volume, separate from any MySQL on your Mac. Stop with `docker compose down` (add `-v` to delete the database too).
+
+**Development** (hot reload): start Spring Boot from IntelliJ (or `mvn spring-boot:run`), then:
 
 ```sh
 cd frontend
@@ -32,6 +39,12 @@ npm run dev
 Open http://localhost:5173. Vite forwards `/api`, `/oauth2`, `/login/oauth2` and `/logout` to port 8080.
 
 Single server: run `npm run build` in `frontend/`. That writes the app to `src/main/resources/static`, so Spring Boot serves everything at http://localhost:8080.
+
+## Database changes
+
+Tables are created and changed by [Flyway](https://documentation.red-gate.com/flyway) migrations in `src/main/resources/db/migration`. On startup the server runs any it hasn't run yet, then Hibernate checks the tables match the Java entities and refuses to start if they don't.
+
+To change the schema: edit the entity, then add the next file, e.g. `V2__add_post_mood.sql` with the `ALTER TABLE`. Never edit a migration that has already run somewhere; Flyway notices and stops.
 
 ## How replies work
 
@@ -53,7 +66,9 @@ Each post gets replies according to the user's plan (`Plan.java`):
 
 ## Tests
 
-`mvn test` runs against an in-memory H2 database with a mocked login. It doesn't need MySQL, Google or OpenRouter.
+`mvn test` runs against a throwaway MySQL that [Testcontainers](https://testcontainers.com) starts in Docker, so **Docker must be running**. It runs the real migrations, so a migration that doesn't match the entities fails the tests. Logins are mocked, and it doesn't need your MySQL, Google or OpenRouter.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the server tests, the web build and the Docker build on every push. Results are under the repo's **Actions** tab.
 
 - `ReplyMixTests`: unit tests for the reply mix, the length cap, parsing and the prompt (no Spring, milliseconds).
 - `AiRepliesTests`: the whole posting flow with a fake AI, checking a free post ends with exactly 100 replies.
