@@ -22,6 +22,13 @@ import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+import java.util.List;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -35,19 +42,41 @@ public class SecurityConfig {
 
     /** Requests from the mobile app: a bearer token, or the endpoints that hand one out. */
     private static final RequestMatcher APP_REQUESTS = new OrRequestMatcher(
+            request -> "OPTIONS".equals(request.getMethod()) && request.getHeader("Origin") != null,
             request -> {
                 String header = request.getHeader("Authorization");
                 return header != null && header.regionMatches(true, 0, "Bearer ", 0, 7);
             },
             PathPatternRequestMatcher.withDefaults().matcher("/api/auth/token"),
             PathPatternRequestMatcher.withDefaults().matcher("/api/auth/refresh"),
-            PathPatternRequestMatcher.withDefaults().matcher("/api/auth/logout"));
+            PathPatternRequestMatcher.withDefaults().matcher("/api/auth/logout"),
+            PathPatternRequestMatcher.withDefaults().matcher("/api/auth/dev"));
+
+    /**
+     * Browsers block a web page from calling a server on another origin unless the server allows it. Only the app's
+     * web preview (npx expo start --web, on port 8081) needs this; phones don't. Off unless CORS_ORIGINS is set.
+     */
+    @Bean
+    CorsConfigurationSource corsConfigurationSource(@Value("${app.cors.allowed-origins:}") String origins) {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        List<String> allowed = Arrays.stream(origins.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
+        if (!allowed.isEmpty()) {
+            CorsConfiguration config = new CorsConfiguration();
+            config.setAllowedOrigins(allowed);
+            config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
+            config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+            source.registerCorsConfiguration("/api/**", config);
+        }
+        return source;
+    }
 
     @Bean
     @Order(1)
     SecurityFilterChain appFilterChain(HttpSecurity http) throws Exception {
         http
                 .securityMatcher(APP_REQUESTS)
+                // Browser preflight checks carry no Authorization header, so this chain also takes OPTIONS requests.
+                .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .anyRequest().authenticated())

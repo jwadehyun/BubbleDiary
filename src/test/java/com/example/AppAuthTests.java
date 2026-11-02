@@ -89,6 +89,12 @@ class AppAuthTests {
     }
 
     @Test
+    void devSignInIsOffByDefault() throws Exception {
+        mvc.perform(post("/api/auth/dev").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"anyone\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void refreshTokensWorkOnce() throws Exception {
         JsonNode first = signIn();
         String refresh = "{\"refreshToken\":\"" + first.path("refreshToken").asString() + "\"}";

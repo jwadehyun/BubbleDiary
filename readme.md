@@ -3,7 +3,8 @@
 A diary styled like the Korean fan app Bubble. You post diary entries or photos as if you were the celebrity, and "fans" reply: quick generic reactions right away, and AI-written replies (via OpenRouter) a few seconds later.
 
 - **Backend**: Spring Boot 4, Spring Security OAuth login (Google), JPA + MySQL, OpenRouter calls made from the server
-- **Front end**: React + Vite in `frontend/`, ported from BubbleDiaryV2
+- **Web app**: React + Vite in `frontend/`
+- **Mobile app** (iOS + Android): Expo / React Native in `mobile/`. See [mobile/README.md](mobile/README.md).
 
 ## Setup
 
@@ -68,7 +69,7 @@ Each post gets replies according to the user's plan (`Plan.java`):
 
 `mvn test` runs against a throwaway MySQL that [Testcontainers](https://testcontainers.com) starts in Docker, so **Docker must be running**. It runs the real migrations, so a migration that doesn't match the entities fails the tests. Logins are mocked, and it doesn't need your MySQL, Google or OpenRouter.
 
-GitHub Actions (`.github/workflows/ci.yml`) runs the server tests, the web build and the Docker build on every push. Results are under the repo's **Actions** tab.
+GitHub Actions (`.github/workflows/ci.yml`) runs the server tests, the web build, the mobile app's typecheck and tests, and the Docker build on every push. Results are under the repo's **Actions** tab.
 
 - `ReplyMixTests`: unit tests for the reply mix, the length cap, parsing and the prompt (no Spring, milliseconds).
 - `AiRepliesTests`: the whole posting flow with a fake AI, checking a free post ends with exactly 100 replies.
@@ -93,6 +94,7 @@ All `/api` endpoints except `/api/auth/*` require sign-in.
 |---|---|---|
 | GET | `/api/auth/providers` | Web login buttons |
 | POST | `/api/auth/token`, `/refresh`, `/logout` | App sign-in: `{provider, idToken}`, then `{refreshToken}` |
+| POST | `/api/auth/dev` | Sign in by `{name}`; only exists when `DEV_LOGIN=true` (development) |
 | GET / PUT | `/api/me`, `/api/me/settings` | Profile and diary settings |
 | DELETE | `/api/me` | Delete the account and all its posts |
 | GET / POST / DELETE | `/api/messages` | List, create, delete all |
