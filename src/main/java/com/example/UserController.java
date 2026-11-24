@@ -1,8 +1,10 @@
 package com.example;
 
-import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -23,9 +25,9 @@ public class UserController {
 
     public record Provider(String id, String name, String loginUrl) {}
 
-    public record Me(String email, String name, boolean aiEnabled, DiarySettings settings) {
+    public record Me(String email, String name, boolean aiEnabled, String plan, DiarySettings settings) {
         static Me of(User user, boolean aiEnabled) {
-            return new Me(user.getEmail(), user.getName(), aiEnabled, DiarySettings.of(user));
+            return new Me(user.getEmail(), user.getName(), aiEnabled, user.getPlan().json(), DiarySettings.of(user));
         }
     }
 
@@ -45,19 +47,21 @@ public class UserController {
 
     // GET /api/me
     @GetMapping("/me")
-    public Me getMe(OAuth2AuthenticationToken auth) {
-        return Me.of(users.require(auth), openRouter.isConfigured());
+    public Me getMe(@CurrentUser User user) {
+        return Me.of(user, openRouter.isConfigured());
     }
 
     // PUT /api/me/settings
     @PutMapping("/me/settings")
-    public Me updateSettings(OAuth2AuthenticationToken auth, @RequestBody DiarySettings settings) {
-        return Me.of(users.updateSettings(users.require(auth), settings), openRouter.isConfigured());
+    public Me updateSettings(@CurrentUser User user, @RequestBody DiarySettings settings) {
+        return Me.of(users.updateSettings(user, settings), openRouter.isConfigured());
     }
 
-    // GET /api/models: OpenRouter models users may pick
-    @GetMapping("/models")
-    public List<OpenRouterClient.ModelInfo> getModels() {
-        return openRouter.models();
+    // DELETE /api/me: deletes the account and all its posts, then signs out
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> deleteAccount(@CurrentUser User user, HttpServletRequest request) throws ServletException {
+        users.deleteAccount(user);
+        request.logout();
+        return ResponseEntity.noContent().build();
     }
 }
